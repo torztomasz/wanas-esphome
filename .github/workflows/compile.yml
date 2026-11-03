@@ -1,0 +1,13 @@
+# Catches breakage when ESPHome changes the APIs our lambdas and helpers use.
+name: Compile firmware
+on: [push, pull_request]
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Throwaway secrets
+        run: |
+          grep -v wanas_api_key secrets.yaml.example > secrets.yaml
+          echo "wanas_api_key: \"$(openssl rand -base64 32)\"" >> secrets.yaml
+      - run: docker run --rm -v "$PWD":/config esphome/esphome:stable compile wanas-rekuperator.yaml

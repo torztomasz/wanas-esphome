@@ -1,0 +1,121 @@
+# ESP32 + RS485 transceiver on the ST-340 "Modbus 1" terminals (A, B, GND).
+# Register map: Wanas 350/550/355/555 manual V_041021, chapter 8 "MODBUS RTU".
+# Address here = manual number - 4001 (Grenton's guide reads "4003 Bieg nawiewu" at address 2).
+
+esphome:
+  name: wanas-rekuperator
+  friendly_name: Rekuperator Wanas
+  includes:
+    - wanas_modbus.h
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 0 # UART0 stays free; the RS485 link uses UART2.
+
+api:
+  encryption:
+    key: !secret wanas_api_key
+
+ota:
+  - platform: esphome
+    encryption:
+      key: !secret wanas_api_key
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+uart:
+  id: rs485
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 19200
+  parity: EVEN
+  data_bits: 8
+  stop_bits: 1
+
+modbus:
+  uart_id: rs485
+  # Module EN pin (DE+RE). Delete this line for auto-direction modules without EN.
+  flow_control_pin: GPIO4
+
+modbus_controller:
+  - id: wanas
+    address: 1
+    update_interval: 15s
+
+# Shared entity shapes. ESPHome ignores keys that start with a dot.
+.register: &register
+  platform: modbus_controller
+  modbus_controller_id: wanas
+  register_type: holding
+  lambda: return wanas_word(data, item->offset);
+
+.temperature: &temperature
+  <<: *register
+  device_class: temperature
+  unit_of_measurement: °C
+  accuracy_decimals: 1
+  state_class: measurement
+  lambda: return wanas_temperature(data, item->offset);
+
+.setting: &setting
+  <<: *register
+  value_type: U_WORD
+  min_value: 0
+  step: 1
+  write_lambda: |-
+    payload.push_back(wanas_encode(x));
+    return x;
+
+sensor:
+  - <<: *register
+    name: Wydatek nawiewu
+    address: 0
+    unit_of_measurement: m³/h
+    state_class: measurement
+  - <<: *register
+    name: Wydatek wywiewu
+    address: 1
+    unit_of_measurement: m³/h
+    state_class: measurement
+  - { <<: *register, name: Bieg nawiewu, address: 2 }
+  - { <<: *register, name: Bieg wywiewu, address: 3 }
+  - { <<: *temperature, name: Temperatura zewnętrzna, address: 4 }
+  - { <<: *temperature, name: Temperatura wyrzutu, address: 5 }
+  - { <<: *temperature, name: Temperatura nawiewu, address: 6 }
+  - { <<: *temperature, name: Temperatura pomieszczenia, address: 7 }
+  - { <<: *register, name: Dni do wymiany filtra, address: 36, unit_of_measurement: d }
+  - { <<: *register, name: Kod błędów, address: 37, entity_category: diagnostic }
+
+binary_sensor:
+  - <<: *register
+    name: GWC aktywny
+    address: 30
+    lambda: return wanas_word(data, item->offset) != 0;
+  - <<: *register
+    name: Bypass aktywny
+    address: 31
+    lambda: return wanas_word(data, item->offset) != 0;
+  - <<: *register
+    name: Filtr do wymiany
+    address: 36
+    device_class: problem
+    lambda: return wanas_word(data, item->offset) == 0;
+
+# The ST-340 has no "current gear" write register; control goes through the
+# weekly-program zone gears and the timed party/fireplace/holiday functions.
+number:
+  - { <<: *setting, name: Bieg strefy 1, address: 14, max_value: 3 }
+  - { <<: *setting, name: Bieg strefy 2, address: 15, max_value: 3 }
+  - { <<: *setting, name: Bieg strefy 3, address: 16, max_value: 3 }
+  - { <<: *setting, name: Bieg strefy 4, address: 17, max_value: 3 }
+  - { <<: *setting, name: Bieg strefy 5, address: 18, max_value: 3 }
+  - { <<: *setting, name: Bypass ręczny, address: 39, max_value: 1 }
+  - { <<: *setting, name: Urlop, address: 43, max_value: 30, unit_of_measurement: d }
+  - { <<: *setting, name: Funkcja kominek, address: 44, max_value: 180 }
+  - { <<: *setting, name: Funkcja impreza, address: 45, max_value: 720, step: 15, unit_of_measurement: min }
