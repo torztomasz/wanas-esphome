@@ -91,6 +91,8 @@ sensor:
   - { <<: *temperature, name: Temperatura pomieszczenia, address: 7 }
   - { <<: *register, name: Dni do wymiany filtra, address: 36, unit_of_measurement: d }
   - { <<: *register, name: Kod błędów, address: 37, entity_category: diagnostic }
+  # Shows whether Wi-Fi reaches the mounting spot, often an attic or utility room.
+  - { platform: wifi_signal, name: Sygnał Wi-Fi, update_interval: 60s, entity_category: diagnostic }
 
 binary_sensor:
   - <<: *register
