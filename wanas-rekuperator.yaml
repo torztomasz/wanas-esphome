@@ -13,8 +13,8 @@ esp32:
   framework:
     type: esp-idf
 
+# Logs go out over USB (UART0); the RS485 link has UART2 to itself.
 logger:
-  baud_rate: 0 # UART0 stays free; the RS485 link uses UART2.
 
 api:
   encryption:
@@ -25,9 +25,15 @@ ota:
     encryption:
       key: !secret wanas_api_key
 
+# No Wi-Fi password in the firmware: ESPHome Web sets it over USB after flashing
+# (improv_serial), and if the network is ever unreachable the ESP opens its own
+# "wanas-rekuperator" hotspot with a setup page (captive_portal).
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ap: {}
+
+captive_portal:
+
+improv_serial:
 
 uart:
   id: rs485

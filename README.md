@@ -37,10 +37,20 @@ Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wan
 
 ## Wgranie
 
-1. `cp secrets.yaml.example secrets.yaml` i uzupełnij dane Wi-Fi. Klucz wygeneruj: `openssl rand -base64 32`. Służy do szyfrowania API i OTA.
-2. Pierwsze wgranie przez USB: `esphome run wanas-rekuperator.yaml` (albo Docker: `docker run --rm -it -v "$PWD":/config --device /dev/ttyUSB0 esphome/esphome run wanas-rekuperator.yaml`). Na Macu dla CH340 może być potrzebny sterownik.
-3. Kolejne aktualizacje idą przez Wi-Fi (OTA).
-4. Home Assistant wykryje urządzenie w *Ustawienia → Urządzenia i usługi → ESPHome*. Podaj ten sam klucz.
+Hasła do Wi-Fi nie ma w firmware. Ustawiasz je po wgraniu: przez USB w ESPHome Web albo przez hotspot „wanas-rekuperator”, który ESP otwiera, gdy nie może się połączyć z siecią.
+
+1. `cp secrets.yaml.example secrets.yaml` i wpisz klucz z `openssl rand -base64 32`. Klucz szyfruje API i OTA, a Home Assistant zapyta o niego przy dodawaniu urządzenia.
+2. Zbuduj plik do wgrania: `docker run --rm -v "$PWD":/config esphome/esphome:stable compile wanas-rekuperator.yaml`. Wynik to `.esphome/build/wanas-rekuperator/build/firmware.factory.bin`.
+3. Wgraj przez przeglądarkę:
+   1. Otwórz [web.esphome.io](https://web.esphome.io) w Chrome albo Edge (Safari i Firefox nie mają WebSerial).
+   2. Podłącz ESP32 kablem USB z transmisją danych. Kabel tylko do ładowania nie wystarczy.
+   3. Kliknij **Connect** i wybierz port CH340 (na Macu `cu.usbserial-…` / `cu.wchusbserial-…`, na Windowsie `COM…`). Jeśli portu nie ma, doinstaluj sterownik CH340 od WCH.
+   4. Kliknij **Install**, wskaż `firmware.factory.bin` i poczekaj ok. minuty. Jeśli nie startuje, przytrzymaj na płytce **BOOT** w chwili, gdy zaczyna się wgrywanie.
+   5. Po wgraniu ESPHome Web zaproponuje ustawienie Wi-Fi. Wybierz sieć i wpisz hasło.
+4. Home Assistant wykryje urządzenie w *Ustawienia → Urządzenia i usługi → ESPHome*. Podaj klucz z `secrets.yaml`.
+5. Kolejne aktualizacje idą przez Wi-Fi (OTA), np. `docker run --rm -v "$PWD":/config esphome/esphome:stable run wanas-rekuperator.yaml --device wanas-rekuperator.local`.
+
+Zamiast przeglądarki można wgrać z linii poleceń przez USB: `esphome run wanas-rekuperator.yaml`.
 
 ## Co pojawi się w Home Assistant
 
