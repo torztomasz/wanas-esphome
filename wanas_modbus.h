@@ -2,9 +2,10 @@
 #include <cmath>
 #include <cstdint>
 
-// Grenton's Wanas guide reads RawValue 512 as gear 2 and 61696 as 24.1 °C,
-// so the ST-340 puts the low byte first. Set to 0 if every value reads 256x too big.
-#define WANAS_SWAP_BYTES 1
+// A real ST-340 (firmware 2.1.27) sends gear 2 as "00 02": high byte first, as Modbus
+// specifies. Grenton's guide shows swapped values (512 for gear 2), perhaps from its
+// own gateway. Set to 1 if every value reads 256x too big.
+#define WANAS_SWAP_BYTES 0
 
 static const uint16_t WANAS_SENSOR_ERROR = 63066;
 

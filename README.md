@@ -4,7 +4,7 @@ Lokalna integracja rekuperatora **Wanas** ze sterownikiem **ST-340 V2** (panel d
 
 Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wanas Mobile Control (W-15 / W-19) działa tylko przez chmurę emodul.eu, a integracje HA dla eModul przy sterownikach wentylacji dają raczej tylko odczyt.
 
-> **Status:** konfiguracja kompiluje się w CI, ale **jeszcze nie odczytała danych z prawdziwej centrali**. Pierwsza próba z modułem MAX3485 z automatycznym kierunkiem (bez pinu DE/RE) na „Modbus 2” dała same śmieci co 20 ms i brak odpowiedzi. Następna próba: moduł MAX485 z kierunkiem sterowanym z ESP, jak niżej. Patrz [Do sprawdzenia przy pierwszym uruchomieniu](#do-sprawdzenia-przy-pierwszym-uruchomieniu).
+> **Status:** odczyt działa na Wanas 350 H/3 (ST-340, oprogramowanie 2.1.27), przez „Modbus 2” i moduł MAX485 z DE/RE sterowanymi z ESP. Zapis z HA (biegi stref, impreza, bypass) nie był jeszcze sprawdzony. Wcześniejszy moduł MAX3485 z automatycznym kierunkiem nie dostawał żadnych odpowiedzi, a na linii były tylko śmieci co 20 ms.
 
 ## Schemat podłączenia
 
@@ -99,7 +99,7 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | 46–49 | 4047–4050 | Wejścia: bieg 1, bieg 3, okap, ppoż. | R | |
 | 50, 51 | 4051, 4052 | Data, godzina | R/W | |
 
-**Kolejność bajtów:** sterownik wysyła młodszy bajt pierwszy. U Grentona surowa wartość 512 to bieg 2, a 61696 to 24,1 °C. Zamianę robią helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_encode`, `wanas_temperature`), przy odczycie i przy zapisie.
+**Kolejność bajtów:** sterownik wysyła starszy bajt pierwszy, czyli standardowo dla Modbus: bieg 2 przychodzi jako `00 02`. Zrzuty Grentona pokazują wartości zamienione (512 dla biegu 2), być może przez ich bramkę. Helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_encode`, `wanas_temperature`) obsługują oba warianty przełącznikiem `WANAS_SWAP_BYTES`, przy odczycie i przy zapisie.
 
 ## Do sprawdzenia przy pierwszym uruchomieniu
 
@@ -108,7 +108,7 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | Same timeouty, brak odpowiedzi | Sprawdź w menu sterownika: Modbus włączony, 19200, E-8-1, adres 1. Zdejmij zworkę nad „Modbus 2” i zrestartuj centralę. Zamień A ↔ B, pomyłka niczego nie uszkodzi |
 | „Frame already active”, „Poll refused by hub”, śmieci co 20 ms | Przydźwięk 50 Hz na linii. Sprawdź multimetrem ciągłość GND między ESP a GND „Modbus 2”. Jeśli na module jest rezystor 120 Ω („121”) przy zacisku A/B, a kabel jest krótki, wyłam go: zwiera polaryzację linii (napięcie A–B spada do ok. 0,04 V) |
 | Nadal nic | Przejściówką USB–RS485 wyślij zapytanie z komputera prosto do sterownika: `pip install pyserial`, potem `python3 tools/modbus_probe.py`. Odpowiedź oznacza, że winny jest moduł albo ESP. Brak odpowiedzi oznacza, że problem leży po stronie sterownika albo kabla |
-| Wartości 256 razy za duże (bieg 512, temperatura 6000+) | W `wanas_modbus.h` ustaw `WANAS_SWAP_BYTES 0` |
+| Wartości 256 razy za duże (bieg 512, temperatury rzędu -3000 albo 6000+) | Odwrotna kolejność bajtów: w `wanas_modbus.h` zmień `WANAS_SWAP_BYTES` (0 ↔ 1). Do czasu poprawki nie zmieniaj encji w HA, bo zapis też poszedłby z zamienionymi bajtami |
 | Wartości przesunięte o jeden rejestr (np. temperatura nawiewu tam, gdzie wyrzutu) | Adresacja jest od 1, nie od 0: dodaj 1 do każdego `address:` |
 | Exception 0x02 (illegal address) | jw. albo inna wersja oprogramowania sterownika |
 
@@ -129,5 +129,5 @@ Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświe
 - Instrukcja instalacji i obsługi Wanas 350/355 z 2025 r.: s. 44, zalecany port „Modbus 2”; s. 51, zworka
 - [Forum ArturHome: Wanas po Modbus RTU / RS485](https://forum.arturhome.pl/t/wanas-combo-430-integracja-z-rekuperatorem-po-modbus-rtu-rs485/16336): ESP z MAX485 na „Modbus 2”
 - [jrx-code/hassio-integration-wanas](https://github.com/jrx-code/hassio-integration-wanas): ta sama mapa rejestrów przez bramkę RS485 → TCP
-- [Grenton: integracja z rekuperatorem Wanas](https://knowledgebase.grenton.com/integration-with-wanas-recuperator) (adresy rejestrów i kolejność bajtów ze zrzutów ekranu)
+- [Grenton: integracja z rekuperatorem Wanas](https://knowledgebase.grenton.com/integration-with-wanas-recuperator) (adresy rejestrów ze zrzutów ekranu)
 - [ESPHome Modbus Controller](https://esphome.io/components/modbus_controller/)

@@ -95,12 +95,10 @@ def find_frame(data):
 
 
 def show_registers(payload):
-    # The ST-340 sends the low byte first (see WANAS_SWAP_BYTES in wanas_modbus.h).
     for n, name in enumerate(NAMES):
-        lo, hi = payload[2 * n], payload[2 * n + 1]
-        value = lo | hi << 8
+        value = int.from_bytes(payload[2 * n:2 * n + 2], "big")
         shown = f"{to_signed(value) / 10:.1f} °C" if name.startswith("Temp") else str(value)
-        print(f"               {n}: {name:<20} {shown:>10}   (surowo {lo:02x} {hi:02x})")
+        print(f"               {n}: {name:<20} {shown:>10}   (surowo {value:04x})")
 
 
 def sniff(link, baud, parity):
