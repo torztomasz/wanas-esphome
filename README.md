@@ -4,7 +4,7 @@ Lokalna integracja rekuperatora **Wanas** ze sterownikiem **ST-340 V2** (panel d
 
 Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wanas Mobile Control (W-15 / W-19) działa tylko przez chmurę emodul.eu, a integracje HA dla eModul przy sterownikach wentylacji dają raczej tylko odczyt.
 
-> **Status:** odczyt działa na Wanas 350 H/3 (ST-340, oprogramowanie 2.1.27), przez „Modbus 2” i moduł MAX485 z DE/RE sterowanymi z ESP. Zapis z HA (biegi stref, impreza, bypass) nie był jeszcze sprawdzony. Wcześniejszy moduł MAX3485 z automatycznym kierunkiem nie dostawał żadnych odpowiedzi, a na linii były tylko śmieci co 20 ms.
+> **Status:** odczyt i zapis działają na Wanas 350 H/3 (ST-340, oprogramowanie 2.1.27), przez „Modbus 2” i moduł MAX485 z DE/RE sterowanymi z ESP. Sprawdzone 7.11.2026: wszystkie encje do odczytu oraz zapis biegów stref 1–5, imprezy, kominka, bypassu i urlopu. Wcześniejszy moduł MAX3485 z automatycznym kierunkiem nie dostawał żadnych odpowiedzi, a na linii były tylko śmieci co 20 ms.
 
 ## Schemat podłączenia
 
@@ -68,6 +68,11 @@ Zamiast przeglądarki można wgrać z linii poleceń przez USB: `esphome run wan
 ST-340 **nie ma rejestru „ustaw bieg teraz”**. Dlatego:
 - bieg na stałe ustawiasz tym samym biegiem we wszystkich 5 strefach;
 - do chwilowego wietrzenia służy funkcja impreza, np. automatyzacja „wilgotność w łazience > 70% → impreza 30 min”.
+
+Co pokazał test na prawdziwej centrali:
+- **Impreza** od razu przełącza nawiew i wywiew na bieg 3. Sterownik zaokrągla czas w górę do 15 min (zapis 5 daje 15). Zapis 0 kończy imprezę.
+- **Kominek** daje nadciśnienie: nawiew 3, wywiew 0. Po zapisie 30 rejestr pokazuje 169, więc jednostka jest niejasna. Zapis 0 kończy kominek.
+- **Biegi stref** zapisują się, ale nie zmieniły bieżącego biegu. Według instrukcji rejestr 8 („Dzień tygodnia”) wybiera dzień programu, którego dotyczą strefy, więc zapis mógł trafić w inny dzień niż dzisiejszy.
 
 ## Mapa rejestrów
 
