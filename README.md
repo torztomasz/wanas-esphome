@@ -107,7 +107,7 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 |---|---|
 | Same timeouty, brak odpowiedzi | Sprawdź w menu sterownika: Modbus włączony, 19200, E-8-1, adres 1. Zdejmij zworkę nad „Modbus 2” i zrestartuj centralę. Zamień A ↔ B, pomyłka niczego nie uszkodzi |
 | „Frame already active”, „Poll refused by hub”, śmieci co 20 ms | Przydźwięk 50 Hz na linii. Sprawdź multimetrem ciągłość GND między ESP a GND „Modbus 2”. Jeśli na module jest rezystor 120 Ω („121”) przy zacisku A/B, a kabel jest krótki, wyłam go: zwiera polaryzację linii (napięcie A–B spada do ok. 0,04 V) |
-| Nadal nic | Przejściówką USB–RS485 wyślij zapytanie z komputera prosto do sterownika. Odpowiedź oznacza, że winny jest moduł albo ESP. Brak odpowiedzi oznacza, że problem leży po stronie sterownika albo kabla |
+| Nadal nic | Przejściówką USB–RS485 wyślij zapytanie z komputera prosto do sterownika: `pip install pyserial`, potem `python3 tools/modbus_probe.py`. Odpowiedź oznacza, że winny jest moduł albo ESP. Brak odpowiedzi oznacza, że problem leży po stronie sterownika albo kabla |
 | Wartości 256 razy za duże (bieg 512, temperatura 6000+) | W `wanas_modbus.h` ustaw `WANAS_SWAP_BYTES 0` |
 | Wartości przesunięte o jeden rejestr (np. temperatura nawiewu tam, gdzie wyrzutu) | Adresacja jest od 1, nie od 0: dodaj 1 do każdego `address:` |
 | Exception 0x02 (illegal address) | jw. albo inna wersja oprogramowania sterownika |
@@ -118,6 +118,7 @@ Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświe
 
 - [`wanas-rekuperator.yaml`](wanas-rekuperator.yaml): konfiguracja ESPHome
 - [`wanas_modbus.h`](wanas_modbus.h): zamiana bajtów, temperatury, kod błędu czujnika
+- [`tools/modbus_probe.py`](tools/modbus_probe.py): test sterownika z komputera przez przejściówkę USB–RS485, bez ESP
 - [`secrets.yaml.example`](secrets.yaml.example): wzór sekretów
 - [`docs/wiring.svg`](docs/wiring.svg): schemat, generowany przez `node docs/wiring-svg.mjs docs/wiring.svg`
 - [`.github/workflows/compile.yml`](.github/workflows/compile.yml): CI kompiluje firmware na `esphome/esphome:stable`, żeby wyłapać zmiany API ESPHome
