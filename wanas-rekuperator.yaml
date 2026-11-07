@@ -1,4 +1,4 @@
-# ESP32 + RS485 transceiver on the ST-340 "Modbus 1" terminals (A, B, GND).
+# ESP32 + RS485 transceiver on the ST-340 "Modbus 2" terminals (A, B, GND); the 2025 manual recommends port 2.
 # Register map: Wanas 350/550/355/555 manual V_041021, chapter 8 "MODBUS RTU".
 # Address here = manual number - 4001 (Grenton's guide reads "4003 Bieg nawiewu" at address 2).
 
@@ -46,7 +46,7 @@ uart:
 
 modbus:
   uart_id: rs485
-  # Module EN pin (DE+RE). Delete this line for auto-direction modules without EN.
+  # Module DE and RE pins, joined. Delete this line for auto-direction modules without them.
   flow_control_pin: GPIO4
 
 modbus_controller:
