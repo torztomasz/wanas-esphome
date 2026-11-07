@@ -74,9 +74,6 @@ modbus_controller:
   value_type: U_WORD
   min_value: 0
   step: 1
-  write_lambda: |-
-    payload.push_back(wanas_encode(x));
-    return x;
 
 sensor:
   - <<: *register

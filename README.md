@@ -99,7 +99,7 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | 46–49 | 4047–4050 | Wejścia: bieg 1, bieg 3, okap, ppoż. | R | |
 | 50, 51 | 4051, 4052 | Data, godzina | R/W | |
 
-**Kolejność bajtów:** sterownik wysyła starszy bajt pierwszy, czyli standardowo dla Modbus: bieg 2 przychodzi jako `00 02`. Zrzuty Grentona pokazują wartości zamienione (512 dla biegu 2), być może przez ich bramkę. Helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_encode`, `wanas_temperature`) obsługują oba warianty przełącznikiem `WANAS_SWAP_BYTES`, przy odczycie i przy zapisie.
+**Kolejność bajtów:** sterownik wysyła starszy bajt pierwszy, czyli standardowo dla Modbus: bieg 2 przychodzi jako `00 02`. Zrzuty Grentona pokazują wartości zamienione (512 dla biegu 2), być może przez ich bramkę. Odczyt robią helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_temperature`), a zapis to zwykły zapis `U_WORD` w ESPHome (funkcja 0x06).
 
 ## Do sprawdzenia przy pierwszym uruchomieniu
 
@@ -108,7 +108,7 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | Same timeouty, brak odpowiedzi | Sprawdź w menu sterownika: Modbus włączony, 19200, E-8-1, adres 1. Zdejmij zworkę nad „Modbus 2” i zrestartuj centralę. Zamień A ↔ B, pomyłka niczego nie uszkodzi |
 | „Frame already active”, „Poll refused by hub”, śmieci co 20 ms | Przydźwięk 50 Hz na linii. Sprawdź multimetrem ciągłość GND między ESP a GND „Modbus 2”. Jeśli na module jest rezystor 120 Ω („121”) przy zacisku A/B, a kabel jest krótki, wyłam go: zwiera polaryzację linii (napięcie A–B spada do ok. 0,04 V) |
 | Nadal nic | Przejściówką USB–RS485 wyślij zapytanie z komputera prosto do sterownika: `pip install pyserial`, potem `python3 tools/modbus_probe.py`. Odpowiedź oznacza, że winny jest moduł albo ESP. Brak odpowiedzi oznacza, że problem leży po stronie sterownika albo kabla |
-| Wartości 256 razy za duże (bieg 512, temperatury rzędu -3000 albo 6000+) | Odwrotna kolejność bajtów: w `wanas_modbus.h` zmień `WANAS_SWAP_BYTES` (0 ↔ 1). Do czasu poprawki nie zmieniaj encji w HA, bo zapis też poszedłby z zamienionymi bajtami |
+| Wartości 256 razy za duże (bieg 512, temperatury rzędu -3000 albo 6000+) | Ten sterownik wysyła młodszy bajt pierwszy. Zamień kolejność w `wanas_word` i dodaj do encji `number` `write_lambda`, która zapisze wartość z zamienionymi bajtami (przez helper zapisu ESPHome, nie przez bufor `payload`). Do tego czasu nie zmieniaj encji w HA |
 | Wartości przesunięte o jeden rejestr (np. temperatura nawiewu tam, gdzie wyrzutu) | Adresacja jest od 1, nie od 0: dodaj 1 do każdego `address:` |
 | Exception 0x02 (illegal address) | jw. albo inna wersja oprogramowania sterownika |
 
@@ -117,7 +117,7 @@ Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświe
 ## Pliki
 
 - [`wanas-rekuperator.yaml`](wanas-rekuperator.yaml): konfiguracja ESPHome
-- [`wanas_modbus.h`](wanas_modbus.h): zamiana bajtów, temperatury, kod błędu czujnika
+- [`wanas_modbus.h`](wanas_modbus.h): odczyt rejestrów, temperatury, kod błędu czujnika
 - [`tools/modbus_probe.py`](tools/modbus_probe.py): test sterownika z komputera przez przejściówkę USB–RS485, bez ESP
 - [`secrets.yaml.example`](secrets.yaml.example): wzór sekretów
 - [`docs/wiring.svg`](docs/wiring.svg): schemat, generowany przez `node docs/wiring-svg.mjs docs/wiring.svg`
