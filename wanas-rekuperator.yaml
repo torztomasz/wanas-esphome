@@ -120,7 +120,7 @@ number:
   - { <<: *setting, name: Bieg strefy 3, address: 16, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 4, address: 17, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 5, address: 18, max_value: 3 }
-  - { <<: *setting, name: Bypass ręczny, address: 39, max_value: 1 }
+  - { <<: *setting, name: Aktywacja bypassu, address: 39, max_value: 1 }
   - { <<: *setting, name: Urlop, address: 43, max_value: 30, unit_of_measurement: d }
   - { <<: *setting, name: Funkcja kominek, address: 44, max_value: 180 }
   - { <<: *setting, name: Funkcja impreza, address: 45, max_value: 720, step: 15, unit_of_measurement: min }

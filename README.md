@@ -63,7 +63,7 @@ Zamiast przeglądarki można wgrać z linii poleceń przez USB: `esphome run wan
 
 **Odczyt:** wydatek nawiewu i wywiewu (m³/h, 0 przy braku funkcji XF), bieg nawiewu i wywiewu, temperatury (zewnętrzna, wyrzutu, nawiewu, pomieszczenia), dni do wymiany filtra, kod błędów, stan bypassu i GWC, „Filtr do wymiany”, siła sygnału Wi-Fi (przydaje się przy wyborze miejsca montażu).
 
-**Sterowanie:** biegi stref 1–5 programu tygodniowego, funkcja impreza (0–720 min), kominek, ręczny bypass, urlop (0–30 dni).
+**Sterowanie:** biegi stref 1–5 programu tygodniowego, funkcja impreza (0–720 min), kominek, aktywacja bypassu (auto, zimą wyłącz), urlop (0–30 dni).
 
 ST-340 **nie ma rejestru „ustaw bieg teraz”**. Dlatego:
 - bieg na stałe ustawiasz tym samym biegiem we wszystkich 5 strefach;
