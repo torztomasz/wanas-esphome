@@ -1,12 +1,43 @@
 # Catches breakage when ESPHome changes the APIs our lambdas and helpers use.
 name: Compile firmware
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # ESPHome ships monthly; without this a quiet repo only learns about breakage on the next push.
+  schedule:
+    - cron: "0 6 15 * *"
+permissions:
+  contents: read
+# Explicit bash adds pipefail, so a failing command piped into tee still fails the step.
+defaults:
+  run:
+    shell: bash
 jobs:
   compile:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Throwaway secrets
         run: |
           echo "wanas_api_key: \"$(openssl rand -base64 32)\"" > secrets.yaml
-      - run: docker run --rm -v "$PWD":/config esphome/esphome:stable compile wanas-rekuperator.yaml
+      # Deprecations show up as warnings a release or two before they become errors.
+      - name: Validate config, failing on warnings
+        run: |
+          docker run --rm -v "$PWD":/config esphome/esphome:stable config wanas-rekuperator.yaml 2>&1 | tee config.log
+          ! grep -q '^WARNING ' config.log
+      # The ESP-IDF download from GitHub releases sometimes returns 504; one retry rides it out.
+      - name: Compile
+        run: |
+          compile() { docker run --rm -v "$PWD":/config esphome/esphome:stable compile wanas-rekuperator.yaml; }
+          compile || { sleep 60; compile; }
+
+  wiring-diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docs/wiring.svg matches its generator
+        run: |
+          node docs/wiring-svg.mjs "$RUNNER_TEMP/wiring.svg"
+          diff -u docs/wiring.svg "$RUNNER_TEMP/wiring.svg"
