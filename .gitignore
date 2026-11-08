@@ -1,2 +1,6 @@
+# Holds the API/OTA encryption key; copy secrets.yaml.example instead.
 secrets.yaml
+# ESPHome build output and the toolchains it downloads.
 .esphome/
+__pycache__/
+.DS_Store
