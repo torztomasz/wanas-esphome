@@ -55,10 +55,14 @@ modbus_controller:
     update_interval: 15s
 
 # Shared entity shapes. ESPHome ignores keys that start with a dot.
+# No shape sets a key that an entity overrides: ESPHome warns about every shadowed merge key.
 .register: &register
   platform: modbus_controller
   modbus_controller_id: wanas
   register_type: holding
+
+.word: &word
+  <<: *register
   lambda: return wanas_word(data, item->offset);
 
 .temperature: &temperature
@@ -70,30 +74,29 @@ modbus_controller:
   lambda: return wanas_temperature(data, item->offset);
 
 .setting: &setting
-  <<: *register
+  <<: *word
   value_type: U_WORD
   min_value: 0
-  step: 1
 
 sensor:
-  - <<: *register
+  - <<: *word
     name: Wydatek nawiewu
     address: 0
     unit_of_measurement: m³/h
     state_class: measurement
-  - <<: *register
+  - <<: *word
     name: Wydatek wywiewu
     address: 1
     unit_of_measurement: m³/h
     state_class: measurement
-  - { <<: *register, name: Bieg nawiewu, address: 2 }
-  - { <<: *register, name: Bieg wywiewu, address: 3 }
+  - { <<: *word, name: Bieg nawiewu, address: 2 }
+  - { <<: *word, name: Bieg wywiewu, address: 3 }
   - { <<: *temperature, name: Temperatura zewnętrzna, address: 4 }
   - { <<: *temperature, name: Temperatura wyrzutu, address: 5 }
   - { <<: *temperature, name: Temperatura nawiewu, address: 6 }
   - { <<: *temperature, name: Temperatura pomieszczenia, address: 7 }
-  - { <<: *register, name: Dni do wymiany filtra, address: 36, unit_of_measurement: d }
-  - { <<: *register, name: Kod błędów, address: 37, entity_category: diagnostic }
+  - { <<: *word, name: Dni do wymiany filtra, address: 36, unit_of_measurement: d }
+  - { <<: *word, name: Kod błędów, address: 37, entity_category: diagnostic }
   # Shows whether Wi-Fi reaches the mounting spot, often an attic or utility room.
   - { platform: wifi_signal, name: Sygnał Wi-Fi, update_interval: 60s, entity_category: diagnostic }
 
