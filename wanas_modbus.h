@@ -8,7 +8,7 @@
 
 static const uint16_t WANAS_SENSOR_ERROR = 63066;
 
-// Templated because ESPHome passes std::vector in older releases and std::span in newer ones.
+// Templated because ESPHome passes a std::vector before 2026.8 and a std::span since.
 template<typename Bytes> uint16_t wanas_word(const Bytes &data, size_t offset) {
   return (data[offset] << 8) | data[offset + 1];
 }
