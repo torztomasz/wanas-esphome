@@ -1,10 +1,39 @@
 # Wanas → Home Assistant (ESPHome + Modbus RTU)
 
-Lokalna integracja rekuperatora **Wanas** ze sterownikiem **ST-340 V2** (panel dotykowy „Display V2”) z Home Assistant. Bez chmury i bez modułu internetowego Wanas: ESP32 rozmawia ze sterownikiem po RS485 (Modbus RTU) i wystawia encje do HA przez ESPHome.
+**English summary.** An ESPHome config that connects a Wanas heat-recovery ventilation unit with a TECH ST-340 controller to Home Assistant locally, with no cloud. An ESP32 with a MAX485 RS485 module talks Modbus RTU to the controller's "Modbus 2" port: 19200 baud, 8E1, slave address 1, high byte first. The module's DE and RE pins are joined and wired to GPIO4.
+
+- **Tested on:** Wanas 350 H/3 with the ST-340 V2 (firmware 2.1.27), built with ESPHome 2026.10.2. Every read entity works. So do writes of the weekly-program zone gears 1–5, party mode, fireplace mode, bypass enable and holiday mode.
+- **Not tested:** other Wanas models, other controller firmware and other TECH controllers. The register map comes from the Wanas manual and may differ on those. Start with reads only and compare the values with the panel.
+- **Getting started:** see the [wiring diagram](#schemat-podłączenia), then [flashing](#wgranie). The [register map](#mapa-rejestrów) table is easy to follow without Polish. Entity names are in Polish; rename them in `wanas-rekuperator.yaml`.
+- **Unofficial:** this project is not affiliated with or endorsed by Wanas or TECH Sterowniki. Writing controller registers is at your own risk. MIT licensed.
+
+---
+
+Lokalna integracja rekuperatora **Wanas** ze sterownikiem **TECH ST-340 V2** (panel dotykowy „Display V2”) z Home Assistant. Bez chmury i bez modułu internetowego Wanas: ESP32 rozmawia ze sterownikiem po RS485 (Modbus RTU) i wystawia encje do HA przez ESPHome.
 
 Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wanas Mobile Control (W-15 / W-19) działa tylko przez chmurę emodul.eu, a integracje HA dla eModul przy sterownikach wentylacji dają raczej tylko odczyt.
 
-> **Status:** odczyt i zapis działają na Wanas 350 H/3 (ST-340, oprogramowanie 2.1.27), przez „Modbus 2” i moduł MAX485 z DE/RE sterowanymi z ESP. Sprawdzone 7.11.2026: wszystkie encje do odczytu oraz zapis biegów stref 1–5, imprezy, kominka, bypassu i urlopu. Wcześniejszy moduł MAX3485 z automatycznym kierunkiem nie dostawał żadnych odpowiedzi, a na linii były tylko śmieci co 20 ms.
+> Projekt nieoficjalny, niezwiązany z firmami Wanas ani TECH Sterowniki. Zapis rejestrów sterownika robisz na własne ryzyko (szczegóły w sekcji [Licencja i zastrzeżenia](#licencja-i-zastrzeżenia)).
+
+## Na czym to sprawdzono
+
+**Sprawdzone** na jednej centrali:
+
+- rekuperator Wanas 350 H/3;
+- sterownik ST-340 V2 z panelem „Display V2”, oprogramowanie wyświetlacza 2.1.27 GR i modułu 2.1.27 G;
+- port „Modbus 2”, 19200 b/s, 8E1, adres 1;
+- ESP32 DevKit (ESP-WROOM-32) z modułem MAX485 „HW-097”, DE i RE na GPIO4;
+- firmware zbudowany na ESPHome 2026.10.2.
+
+Działa odczyt wszystkich encji oraz zapis biegów stref 1–5, imprezy, kominka, aktywacji bypassu i urlopu. Jak sterownik reaguje na zapis, opisuje sekcja [Co pojawi się w Home Assistant](#co-pojawi-się-w-home-assistant).
+
+**Niesprawdzone:**
+
+- **Inne modele Wanas** (250, 550, 355/555, Combo) **i inne wersje oprogramowania.** Mapa rejestrów pochodzi z instrukcji z 2021 r. i może być inna w innej wersji.
+- **Inne sterowniki TECH**, także w centralach innych marek. Port Modbus i mapa rejestrów mogą się różnić. Zacznij od samego odczytu: usuń sekcję `number:` z YAML i porównaj wartości z panelem.
+- **Moduły RS485 z automatycznym kierunkiem** (bez pinów DE/RE). Na sprawdzonej centrali taki moduł (MAX3485) nie dostał żadnej odpowiedzi.
+- **Praca razem z modułem internetowym** Wanas (W-15 / W-19).
+- **Rejestry, których YAML nie wystawia**: końce stref, temperatury stref, data i godzina. Nie zapisuj rejestrów 24–26 (adres, prędkość, parzystość), bo stracisz łączność, dopóki nie przywrócisz ustawień z panelu.
 
 ## Schemat podłączenia
 
@@ -37,7 +66,7 @@ Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wan
 | Część | Uwagi |
 |---|---|
 | ESP32 DevKit z ESP-WROOM-32, 30 pinów (np. wersja z CH340 i USB-C) | `board: esp32dev`. Nie WROVER, bo tam GPIO16/17 zajmuje PSRAM |
-| Moduł RS485 z pinami **DE i RE**: MAX485 „HW-097” (ok. 5 zł) albo Waveshare RS485 Board 3.3V (pin RSE = DE/RE) | Moduły z automatycznym kierunkiem (tylko VCC, RXD, TXD, GND) nadają same zera, a jedynki zostawiają rezystorom. U nas nie dostały odpowiedzi, choć jednemu użytkownikowi ArturHome taki zadziałał. Z nimi usuń `flow_control_pin` |
+| Moduł RS485 z pinami **DE i RE**: MAX485 „HW-097” (ok. 5 zł) albo Waveshare RS485 Board 3.3V (pin RSE = DE/RE) | Moduły z automatycznym kierunkiem (tylko VCC, RXD, TXD, GND) nadają same zera, a jedynki zostawiają rezystorom. Na sprawdzonej centrali MAX3485 tego typu nie dostał odpowiedzi (na linii były tylko śmieci co 20 ms), choć jednemu użytkownikowi ArturHome taki zadziałał. Z nimi usuń `flow_control_pin` |
 | Kabelki dupont żeńsko-męskie, złączka Wago 221-413, skrętka do centrali | Męski bolec wchodzi w zacisk śrubowy, żeński na piny modułu |
 | Adapter śrubowy „ESP32 30pin Terminal Shield” (opcjonalnie) | Zamiast płytki stykowej, która potrafi mieć kilkanaście omów na styku |
 | Zasilanie | Zasilacz USB 5 V do ESP **albo** przetwornica step-down 9–36 V → USB 5 V (stałe wyjście, bez potencjometru) z wyjścia „DC 24V max 0,5A” na płycie Wanas. Nigdy 24 V prosto na ESP |
@@ -70,7 +99,7 @@ ST-340 **nie ma rejestru „ustaw bieg teraz”**. Dlatego:
 - bieg na stałe ustawiasz tym samym biegiem we wszystkich 5 strefach;
 - do chwilowego wietrzenia służy funkcja impreza, np. automatyzacja „wilgotność w łazience > 70% → impreza 30 min”.
 
-Co pokazał test na prawdziwej centrali:
+Jak zareagował sprawdzony sterownik (ST-340, 2.1.27):
 - **Impreza** od razu przełącza nawiew i wywiew na bieg 3. Sterownik zaokrągla czas w górę do 15 min (zapis 5 daje 15). Zapis 0 kończy imprezę.
 - **Kominek** daje nadciśnienie: nawiew 3, wywiew 0. Po zapisie 30 rejestr pokazuje 169, więc jednostka jest niejasna. Zapis 0 kończy kominek.
 - **Biegi stref** zapisują się, ale nie zmieniły bieżącego biegu. Według instrukcji rejestr 8 („Dzień tygodnia”) wybiera dzień programu, którego dotyczą strefy, więc zapis mógł trafić w inny dzień niż dzisiejszy.
@@ -118,8 +147,6 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | Wartości przesunięte o jeden rejestr (np. temperatura nawiewu tam, gdzie wyrzutu) | Adresacja jest od 1, nie od 0: dodaj 1 do każdego `address:` |
 | Exception 0x02 (illegal address) | jw. albo inna wersja oprogramowania sterownika |
 
-Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświetlacza 2.1.27 GR i modułu 2.1.27 G. Inna wersja może mieć przesuniętą mapę rejestrów.
-
 ## Pliki
 
 - [`wanas-rekuperator.yaml`](wanas-rekuperator.yaml): konfiguracja ESPHome
@@ -128,6 +155,7 @@ Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświe
 - [`secrets.yaml.example`](secrets.yaml.example): wzór sekretów
 - [`docs/wiring.svg`](docs/wiring.svg): schemat, generowany przez `node docs/wiring-svg.mjs docs/wiring.svg`
 - [`.github/workflows/compile.yml`](.github/workflows/compile.yml): CI kompiluje firmware na `esphome/esphome:stable`, żeby wyłapać zmiany API ESPHome
+- [`LICENSE`](LICENSE): licencja MIT
 
 ## Źródła
 
@@ -137,3 +165,9 @@ Instrukcja jest z 2021 r. Sterownik, na którym to powstało, ma wersję wyświe
 - [jrx-code/hassio-integration-wanas](https://github.com/jrx-code/hassio-integration-wanas): ta sama mapa rejestrów przez bramkę RS485 → TCP
 - [Grenton: integracja z rekuperatorem Wanas](https://knowledgebase.grenton.com/integration-with-wanas-recuperator) (adresy rejestrów ze zrzutów ekranu)
 - [ESPHome Modbus Controller](https://esphome.io/components/modbus_controller/)
+
+## Licencja i zastrzeżenia
+
+Kod i dokumentacja są na licencji [MIT](LICENSE).
+
+To prywatny, nieoficjalny projekt. Nie jest związany z firmami Wanas ani TECH Sterowniki i nie jest przez nie wspierany. Nazwy produktów służą tylko do wskazania, z jakim sprzętem to działa. Zapis rejestrów sterownika robisz na własne ryzyko: błędna wartość może zmienić pracę centrali albo odciąć komunikację Modbus. Prace przy płycie rób po odłączeniu centrali od 230 V.
