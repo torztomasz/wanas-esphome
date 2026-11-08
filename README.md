@@ -26,6 +26,7 @@ Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wan
 - **DE i RE razem do D4.** Na module leżą obok siebie. Bez płytki stykowej połącz trzy kabelki (z D4, DE i RE) jedną złączką Wago 221‑413, zrób mostek cyną między pinami albo wkręć dwa bolce w jeden zacisk adaptera śrubowego do ESP32.
 - **GND sterownika osobnym kabelkiem z drugiego pinu GND na ESP.** Zacisk modułu ma tylko A i B. Bez wspólnej masy linie łapią przydźwięk 50 Hz.
 - **VCC z 3V3.** MAX485 jest na 5 V i przy 3,3 V pracuje poza specyfikacją, ale zwykle działa i nie wymaga dzielnika. Jeśli nie zadziała: VCC na VIN (5 V z USB) i dzielnik na RO, 10 kΩ szeregowo do D16 i 20 kΩ z D16 do GND, bo pin ESP32 przyjmuje najwyżej 3,3 V.
+- **Zasilanie z płyty: „DC 24V” (napis 24V 500mA) → przetwornica → USB.** Plus 24 V na IN+, minus na IN− przetwornicy, a z jej gniazda USB zwykły kabel do ESP. Przed podłączeniem zmierz multimetrem, który zacisk to plus i ile woltów jest bez obciążenia (przetwornica przyjmie do 36 V). ESP z modułem bierze z 24 V ok. 0,05 A, więc limit 0,5 A wystarczy z zapasem. Jeśli coś już siedzi na tych zaciskach, dołącz się równolegle. Do wgrania z komputera przepnij kabel USB z przetwornicy do laptopa.
 - Kieruj się napisami na płytkach, nie kolejnością na rysunku.
 - Rekuperator przed odkręcaniem zacisków **odłącz od prądu (230 V)**. „DISP” to panel dotykowy na własnej magistrali, więc ESP jest jedynym masterem na „Modbus 2”.
 - Do rekuperatora poprowadź skrętkę, np. wolną parę z kabla UTP: A i B w jednej parze, GND osobno.

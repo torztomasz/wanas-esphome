@@ -1,4 +1,5 @@
-// Builds docs/wiring.svg: ESP32 DevKit -> MAX485 module (HW-097) -> Wanas ST-340 "Modbus 2".
+// Builds docs/wiring.svg: ESP32 DevKit -> MAX485 module (HW-097) -> Wanas ST-340 "Modbus 2",
+// plus power from the board's "DC 24V" output through a 24 V -> USB step-down.
 // Usage: node docs/wiring-svg.mjs docs/wiring.svg
 import { writeFileSync } from "node:fs";
 
@@ -11,8 +12,9 @@ const text = (x, y, s, cls, anchor = "start") =>
 const W = { tx: "#e0a800", rx: "#2fa84f", pwr: "#e5484d", dir: "#a855f7", a: "#3b82f6", b: "#f97316" };
 // Everything sits 30px down so the ESP-to-Wanas GND wire can run above the boards without crossing A/B.
 const TOP = 30;
+const H = 650;
 
-add(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 ${500 + TOP}" width="800" height="${500 + TOP}" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+add(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 ${H + TOP}" width="800" height="${H + TOP}" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
 <style>
 .t{font:700 14px system-ui,sans-serif;fill:#0f172a}.s{font:12px system-ui,sans-serif;fill:#475569}
 .l{font:600 11px ui-monospace,Menlo,monospace;fill:#f1f5f9}.d{font:400 11px ui-monospace,Menlo,monospace;fill:#94a3b8}
@@ -28,8 +30,6 @@ add(`<rect x="30" y="30" width="165" height="410" rx="8" fill="#1d2f52"/>
 <path d="M75 48h12v10h12v-10h12v10h12v-10h12" fill="none" stroke="#64748b" stroke-width="2"/>
 <text x="112" y="88" text-anchor="middle" style="font:700 10px ui-monospace,monospace;fill:#1e293b">ESP-WROOM-32</text>
 <rect x="92" y="420" width="42" height="26" rx="6" fill="#9ca3af"/>`);
-text(113, 466, "USB-C → zasilacz 5 V albo", "s", "middle");
-text(113, 482, "przetwornica z 24 V płyty", "s", "middle");
 
 text(320, 190, "Moduł MAX485 (HW-097)", "t");
 text(320, 208, "kierunek sterowany z ESP (DE/RE)", "s");
@@ -40,10 +40,19 @@ add(`<rect x="320" y="225" width="150" height="170" rx="6" fill="#1e3a8a"/>
 text(320, 412, "VCC i GND są w drugim rzędzie", "s");
 text(320, 428, "pinów, przy zielonym zacisku", "s");
 
+text(320, 500, "Przetwornica 24 V → USB", "t");
+text(320, 518, "wejście 9–36 V, wyjście stałe 5 V", "s");
+add(`<rect x="320" y="532" width="150" height="66" rx="6" fill="#334155"/>
+<rect x="312" y="553" width="18" height="24" rx="2" fill="#9ca3af" stroke="#1f2937"/>
+<circle cx="372" cy="565" r="16" fill="#111827"/><circle cx="372" cy="565" r="9" fill="none" stroke="#b45309" stroke-width="3"/>
+<rect x="446" y="540" width="30" height="50" rx="3" fill="#16a34a"/>`);
+text(320, 616, "Najpierw multimetrem sprawdź, który", "s");
+text(320, 632, "zacisk 24 V to plus: odwrotnie spalisz przetwornicę.", "s");
+
 text(580, 16, "Płyta w centrali Wanas", "t");
 text(580, 34, "sterownik ST-340, lewa krawędź", "s");
-add(`<rect x="580" y="45" width="210" height="440" rx="6" fill="#2e3a2f"/>
-<rect x="580" y="45" width="40" height="440" fill="#16a34a" opacity=".55"/>`);
+add(`<rect x="580" y="45" width="210" height="500" rx="6" fill="#2e3a2f"/>
+<rect x="580" y="45" width="40" height="500" fill="#16a34a" opacity=".55"/>`);
 text(632, 70, "zworkę nad MODBUS 2", "l");
 text(632, 88, "zdejmij (instr. s. 51)", "l");
 
@@ -67,8 +76,10 @@ const rsLeft = { DI: 250, RO: 274, DE: 298, RE: 322, GND: 346, VCC: 370 };
 const rsRight = { B: 342, A: 364 };
 for (const [n, y] of Object.entries(rsLeft)) { add(`<rect x="321" y="${y-5}" width="10" height="10" fill="#d4a017"/>`); text(338, y, n, "l"); }
 for (const [n, y] of Object.entries(rsRight)) { add(`<circle cx="461" cy="${y}" r="5" fill="#d1d5db" stroke="#14532d"/>`); text(440, y, n, "l", "end"); }
+const buck = { "IN+": 552, "IN−": 578 };
+for (const [n, y] of Object.entries(buck)) { add(`<circle cx="461" cy="${y}" r="5" fill="#d1d5db" stroke="#14532d"/>`); text(440, y, n, "l", "end"); }
 
-const groups = [["DISP (panel)",["GND","+","B","A"],false],["Modbus 1",["GND","B","A"],false],["Modbus 2",["GND","B","A"],true],["TECH RS",["RX","TX","+","GND"],false]];
+const groups = [["DISP (panel)",["GND","+","B","A"],false],["Modbus 1",["GND","B","A"],false],["Modbus 2",["GND","B","A"],true],["TECH RS",["RX","TX","+","GND"],false],["DC 24V 0,5A",["+","−"],true]];
 const wanasY = {}; let y = 142;
 for (const [g, pins, on] of groups) {
   const y0 = y;
@@ -78,7 +89,10 @@ for (const [g, pins, on] of groups) {
   }
   text(662, (y0 + y - 22) / 2, g, on ? "l" : "d"); y += 12;
 }
-add(`<rect x="573" y="${wanasY.GND-13}" width="180" height="70" rx="8" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 4"/>`);
+add(`<rect x="573" y="${wanasY.GND-13}" width="180" height="70" rx="8" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 4"/>
+<rect x="573" y="${wanasY["+"]-13}" width="200" height="48" rx="8" fill="none" stroke="${W.pwr}" stroke-width="2" stroke-dasharray="5 4"/>`);
+text(580, 562, "Zaciski 24 V mogą leżeć gdzie", "s");
+text(580, 578, "indziej: szukaj napisu 24V 500mA", "s");
 
 // Pass 3: wires, each in its own vertical channel so crossings stay readable
 const wire = (d, color) => add(`<path d="${d}" class="${color ? "w" : "w g"}"${color ? ` style="stroke:${color}"` : ""}/>`);
@@ -102,6 +116,12 @@ wire(`M461 ${rsRight.B} H590`, W.b);
 wire(`M461 ${rsRight.A} H590`, W.a);
 text(512, 300, "skrętka", "s", "middle");
 text(512, 316, "(para UTP)", "s", "middle");
+
+// Power: board 24 V into the step-down, its USB socket into the ESP's USB port.
+wire(`M461 ${buck["IN+"]} H540 V${wanasY["+"]} H590`, W.pwr);
+wire(`M461 ${buck["IN−"]} H555 V${wanasY["−"]} H590`, null);
+add(`<path d="M113 446 V565 H312" style="fill:none;stroke:#6b7280;stroke-width:7;stroke-linecap:round;stroke-linejoin:round"/>`);
+text(200, 584, "kabel USB do gniazda ESP", "s", "middle");
 
 add("</g>\n</svg>");
 writeFileSync(process.argv[2], out.join("\n") + "\n");
