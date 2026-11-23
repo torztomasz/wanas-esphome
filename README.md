@@ -2,7 +2,8 @@
 
 **English summary.** An ESPHome config that connects a Wanas heat-recovery ventilation unit with a TECH ST-340 controller to Home Assistant locally, with no cloud. An ESP32 with a MAX485 RS485 module talks Modbus RTU to the controller's "Modbus 2" port: 19200 baud, 8E1, slave address 1, high byte first. The module's DE and RE pins are joined and wired to GPIO4.
 
-- **Tested on:** Wanas 350 H/3 with the ST-340 V2 (firmware 2.1.27), built with ESPHome 2026.10.2. Every read entity works. So do writes of the weekly-program zone gears 1–5, party mode, fireplace mode, bypass enable and holiday mode.
+- **Tested on:** Wanas 350 H/3 with the ST-340 V2 (firmware 2.1.27), built with ESPHome 2026.10.2. Every read entity works. So do writes of the weekly-program zone gears 1–5, program day, zone ends, party mode, fireplace mode, bypass enable and holiday mode.
+- **Setting the gear:** the controller has no "set gear now" register. The live gear is the gear of the weekly program's active zone, and writing that zone changes the fans within about 10 s. Register 8 ("program day") picks which day's program the zone registers address; it is not the current weekday. [`home-assistant/rekuperator_bieg.yaml`](home-assistant/rekuperator_bieg.yaml) turns this into a gear selector (Program/0/1/2/3) that rewrites the active zone and restores it afterwards. Register 4073 ("manual speed" in a 2026 Combo manual) is rejected on read and ignored on write by firmware 2.1.27.
 - **Not tested:** other Wanas models, other controller firmware and other TECH controllers. The register map comes from the Wanas manual and may differ on those. Start with reads only and compare the values with the panel.
 - **Getting started:** see the [wiring diagram](#schemat-podłączenia), then [flashing](#wgranie). The [register map](#mapa-rejestrów) table is easy to follow without Polish. Entity names are in Polish; rename them in `wanas-rekuperator.yaml`.
 - **Unofficial:** this project is not affiliated with or endorsed by Wanas or TECH Sterowniki. Writing controller registers is at your own risk. MIT licensed.
@@ -25,7 +26,7 @@ Dlaczego tak: sterownik ma dwa wbudowane porty Modbus RTU typu slave. Moduł Wan
 - ESP32 DevKit (ESP-WROOM-32) z modułem MAX485 „HW-097”, DE i RE na GPIO4;
 - firmware zbudowany na ESPHome 2026.10.2.
 
-Działa odczyt wszystkich encji oraz zapis biegów stref 1–5, imprezy, kominka, aktywacji bypassu i urlopu. Jak sterownik reaguje na zapis, opisuje sekcja [Co pojawi się w Home Assistant](#co-pojawi-się-w-home-assistant).
+Działa odczyt wszystkich encji oraz zapis biegów stref 1–5, dnia programu, końców stref, imprezy, kominka, aktywacji bypassu i urlopu. Jak sterownik reaguje na zapis, opisuje sekcja [Co pojawi się w Home Assistant](#co-pojawi-się-w-home-assistant).
 
 **Niesprawdzone:**
 
@@ -33,7 +34,8 @@ Działa odczyt wszystkich encji oraz zapis biegów stref 1–5, imprezy, kominka
 - **Inne sterowniki TECH**, także w centralach innych marek. Port Modbus i mapa rejestrów mogą się różnić. Zacznij od samego odczytu: usuń sekcję `number:` z YAML i porównaj wartości z panelem.
 - **Moduły RS485 z automatycznym kierunkiem** (bez pinów DE/RE). Na sprawdzonej centrali taki moduł (MAX3485) nie dostał żadnej odpowiedzi.
 - **Praca razem z modułem internetowym** Wanas (W-15 / W-19).
-- **Rejestry, których YAML nie wystawia**: końce stref, temperatury stref, data i godzina. Nie zapisuj rejestrów 24–26 (adres, prędkość, parzystość), bo stracisz łączność, dopóki nie przywrócisz ustawień z panelu.
+- **Zapis temperatur stref oraz aktywacji GWC, nawilżacza, nagrzewnicy i chłodnicy.** Encje są, ale na sprawdzonej centrali tych funkcji nie ma albo są wyłączone.
+- **Rejestry 24–26 (adres, prędkość, parzystość), data i godzina** są w YAML tylko do odczytu. Zapis 24–26 odciąłby łączność, dopóki nie przywrócisz ustawień z panelu.
 
 ## Schemat podłączenia
 
@@ -91,18 +93,38 @@ Zamiast przeglądarki można wgrać z linii poleceń przez USB: `esphome run wan
 
 ## Co pojawi się w Home Assistant
 
-**Odczyt:** wydatek nawiewu i wywiewu (m³/h, 0 przy braku funkcji XF), bieg nawiewu i wywiewu, temperatury (zewnętrzna, wyrzutu, nawiewu, pomieszczenia), dni do wymiany filtra, kod błędów, stan bypassu i GWC, „Filtr do wymiany”, siła sygnału Wi-Fi (przydaje się przy wyborze miejsca montażu).
+**Odczyt:** wydatek nawiewu i wywiewu (m³/h, 0 przy braku funkcji XF), bieg nawiewu i wywiewu, temperatury (zewnętrzna, wyrzutu, nawiewu, pomieszczenia, EXTRA), dni do wymiany filtra, kod błędów, stan GWC, bypassu, nawilżacza, nagrzewnicy, chłodnicy i urlopu, „Filtr do wymiany”, wejścia (bieg 1, bieg 3, okap, ppoż.), zegar sterownika.
 
-**Sterowanie:** biegi stref 1–5 programu tygodniowego, funkcja impreza (0–720 min), kominek, aktywacja bypassu (auto, zimą wyłącz), urlop (0–30 dni).
+**Diagnostyka:** ustawienia Modbus sterownika (adres, prędkość, parametry), surowa data i godzina, siła sygnału Wi-Fi (przydaje się przy wyborze miejsca montażu), czas pracy i temperatura ESP, połączenie z HA, adres IP, punkt dostępowy, wersja ESPHome, przyciski restartu i trybu awaryjnego ESP.
 
-ST-340 **nie ma rejestru „ustaw bieg teraz”**. Dlatego:
-- bieg na stałe ustawiasz tym samym biegiem we wszystkich 5 strefach;
-- do chwilowego wietrzenia służy funkcja impreza, np. automatyzacja „wilgotność w łazience > 70% → impreza 30 min”.
+**Sterowanie:** program tygodniowy (dzień programu, końce stref 1–4, biegi i temperatury stref 1–5), funkcja impreza (0–720 min), kominek, aktywacja GWC, bypassu (auto, zimą wyłącz) i nawilżacza, nagrzewnica i chłodnica (0–60 dni), urlop (0–30 dni).
+
+### Ustawianie biegu
+
+ST-340 **nie ma rejestru „ustaw bieg teraz”**, ale bieg da się ustawić. Bieżący bieg to bieg tej strefy programu tygodniowego, która właśnie trwa. Zapis biegu tej strefy zmienia nawiew i wywiew w ok. 10 s. Trzeba przy tym pamiętać o dwóch rzeczach:
+
+- **Rejestr 8 („Dzień programu”) to nie bieżący dzień tygodnia.** Wybiera, który dzień programu czytają i zapisują rejestry 10–23 (końce, biegi i temperatury stref). Przed zapisem biegu strefy ustaw go na dzisiejszy dzień (0 = niedziela).
+- **Aktywną strefę wyznacza zegar sterownika** (encja „Zegar sterownika”), a nie zegar HA. Na sprawdzonej centrali spieszył się o ponad godzinę, więc warto go ustawić na panelu.
+
+Gotowy przełącznik dla HA jest w [`home-assistant/rekuperator_bieg.yaml`](home-assistant/rekuperator_bieg.yaml) (pakiet HA, instrukcja na początku pliku). Ma pozycje Program, 0, 1, 2 i 3. Po wybraniu biegu:
+
+1. ustawia dzień programu na dzisiejszy i z zegara sterownika wylicza aktywną strefę;
+2. zapamiętuje jej oryginalny bieg i zapisuje wybrany;
+3. gdy strefa się skończy albo zmieni się dzień, przywraca oryginał i zapisuje wybrany bieg w kolejnej strefie. Bieg zostaje więc do wybrania „Program”, a zmieniona jest najwyżej jedna strefa naraz.
+
+To prawdziwa zmiana programu: jeśli HA nie działa, gdy strefa się kończy, zmieniona strefa zostaje do jego powrotu. Impreza i urlop nadal mają pierwszeństwo przed wybranym biegiem.
+
+Do chwilowego wietrzenia lepsza jest funkcja impreza, bo kończy się sama, np. automatyzacja „wilgotność w łazience > 70% → impreza 30 min”.
+
+**Rejestr 4073 („bieg ręczny”)** z instrukcji Combo 430/630 z 04.2026 sprawdzony na ST-340 2.1.27: sterownik odrzuca odczyt (tak samo 4074 i 4075) i ignoruje zapis. Dlatego nie ma go w YAML.
+
+### Reakcje sterownika na zapis
 
 Jak zareagował sprawdzony sterownik (ST-340, 2.1.27):
 - **Impreza** od razu przełącza nawiew i wywiew na bieg 3. Sterownik zaokrągla czas w górę do 15 min (zapis 5 daje 15). Zapis 0 kończy imprezę.
 - **Kominek** daje nadciśnienie: nawiew 3, wywiew 0. Po zapisie 30 rejestr pokazuje 169, więc jednostka jest niejasna. Zapis 0 kończy kominek.
-- **Biegi stref** zapisują się, ale nie zmieniły bieżącego biegu. Według instrukcji rejestr 8 („Dzień tygodnia”) wybiera dzień programu, którego dotyczą strefy, więc zapis mógł trafić w inny dzień niż dzisiejszy.
+- **Bieg aktywnej strefy** dzisiejszego programu: zapis 1 i 3 od razu zmienił nawiew i wywiew, a zapis 2 przywrócił poprzedni bieg, za każdym razem w mniej niż 10 s. Wcześniejszy test „bez efektu” był w sobotę, a rejestr 8 stał na 0, więc zapis trafił w program niedzieli.
+- **Koniec strefy:** przesunięcie końca strefy 3 za bieżącą godzinę zmieniło aktywną strefę na 3, a powrót końca przywrócił strefę 4. Przełącznik z HA przeniósł bieg między nimi w niecałą minutę.
 
 ## Mapa rejestrów
 
@@ -117,13 +139,13 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | 2 | 4003 | Bieg nawiewu | R | 0 postój, 1 pusty dom, 2 praca, 3 wietrzenie |
 | 3 | 4004 | Bieg wywiewu | R | jw. |
 | 4–7 | 4005–4008 | Temp. zewnętrzna, wyrzutowa, nawiewowa, pomieszczenia | R | 0,1 °C ze znakiem, 63066 = błąd czujnika |
-| 8 | 4009 | Dzień tygodnia | R/W | 0 niedziela … 6 sobota |
+| 8 | 4009 | Dzień programu (w instrukcji „Dzień tygodnia”) | R/W | 0 niedziela … 6 sobota. Wybiera dzień programu dla rejestrów 10–23, nie jest bieżącym dniem |
 | 10–13 | 4011–4014 | Koniec strefy 1–4 | R/W | minuty od północy, krok 15 |
 | 14–18 | 4015–4019 | Bieg strefy 1–5 | R/W | 0–3 |
 | 19–23 | 4020–4024 | Temp. strefy 1–5 | R/W | 10–30 °C |
-| 24 | 4025 | Adres Modbus | R/W | 1–254 |
-| 25 | 4026 | Baud rate | R/W | 0:2400 1:4800 2:9600 3:19200 4:38400 5:57600 6:115200 |
-| 26 | 4027 | Parametry transmisji | R/W | 0:N-8-1 1:E-8-1 2:O-8-1 3:N-8-2 4:E-8-2 5:O-8-2 |
+| 24 | 4025 | Adres Modbus | R/W (YAML: R) | 1–254 |
+| 25 | 4026 | Baud rate | R/W (YAML: R) | 0:2400 1:4800 2:9600 3:19200 4:38400 5:57600 6:115200 |
+| 26 | 4027 | Parametry transmisji | R/W (YAML: R) | 0:N-8-1 1:E-8-1 2:O-8-1 3:N-8-2 4:E-8-2 5:O-8-2 |
 | 29 | 4030 | EXTRA TEMP | R | jak temperatury |
 | 30–35 | 4031–4036 | Stan: GWC, bypass, nawilżacz, nagrzewnica, chłodnica, urlop | R | 1 aktywne |
 | 36 | 4037 | Wymiana filtra | R | 0 = wymień, 1–252 = dni do wymiany |
@@ -132,9 +154,10 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 | 44 | 4045 | Funkcja kominek | R/W | instrukcja: „maks. 180 sekund” |
 | 45 | 4046 | Funkcja impreza | R/W | minuty, maks. 720 |
 | 46–49 | 4047–4050 | Wejścia: bieg 1, bieg 3, okap, ppoż. | R | |
-| 50, 51 | 4051, 4052 | Data, godzina | R/W | |
+| 50, 51 | 4051, 4052 | Data, godzina | R/W (YAML: R) | godzina: starszy bajt to godzina, młodszy to minuty; format daty niesprawdzony |
+| 72–74 | 4073–4075 | Bieg ręczny, temp. ręczna, wersja (tylko instrukcja Combo z 04.2026) | ✗ | ST-340 2.1.27 odrzuca odczyt i ignoruje zapis 4073 |
 
-**Kolejność bajtów:** sterownik wysyła starszy bajt pierwszy, czyli standardowo dla Modbus: bieg 2 przychodzi jako `00 02`. Zrzuty Grentona pokazują wartości zamienione (512 dla biegu 2), być może przez ich bramkę. Odczyt robią helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_temperature`), a zapis to zwykły zapis `U_WORD` w ESPHome (funkcja 0x06).
+**Kolejność bajtów:** sterownik wysyła starszy bajt pierwszy, czyli standardowo dla Modbus: bieg 2 przychodzi jako `00 02`. Zrzuty Grentona pokazują wartości zamienione (512 dla biegu 2), być może przez ich bramkę. Odczyt robią helpery w [`wanas_modbus.h`](wanas_modbus.h) (`wanas_word`, `wanas_temperature`, `wanas_clock`), a zapis to zwykły zapis `U_WORD` w ESPHome (funkcja 0x06).
 
 ## Do sprawdzenia przy pierwszym uruchomieniu
 
@@ -150,7 +173,8 @@ Adres w konfiguracji = **numer z instrukcji − 4001**. Poradnik Grentona czyta 
 ## Pliki
 
 - [`wanas-rekuperator.yaml`](wanas-rekuperator.yaml): konfiguracja ESPHome
-- [`wanas_modbus.h`](wanas_modbus.h): odczyt rejestrów, temperatury, kod błędu czujnika
+- [`wanas_modbus.h`](wanas_modbus.h): odczyt rejestrów, temperatury, kod błędu czujnika, zegar sterownika
+- [`home-assistant/rekuperator_bieg.yaml`](home-assistant/rekuperator_bieg.yaml): pakiet HA z przełącznikiem biegu
 - [`tools/modbus_probe.py`](tools/modbus_probe.py): test sterownika z komputera przez przejściówkę USB–RS485, bez ESP
 - [`secrets.yaml.example`](secrets.yaml.example): wzór sekretów
 - [`docs/wiring.svg`](docs/wiring.svg): schemat, generowany przez `node docs/wiring-svg.mjs docs/wiring.svg`
