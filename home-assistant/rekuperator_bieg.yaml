@@ -1,0 +1,146 @@
+# Gear selector for Home Assistant: pick a gear and the unit runs on it until "Program" is picked.
+#
+# Install: copy to /config/packages/ (configuration.yaml needs
+# `homeassistant: { packages: !include_dir_named packages }`) and restart Home Assistant.
+# Entity IDs assume the ESPHome device is named "Rekuperator Wanas", as in wanas-rekuperator.yaml.
+#
+# Why it works this way: the ST-340 (firmware 2.1.27) has no "set gear now" register. Register
+# 4073 "manual speed" (04.2026 Combo manual) is ignored, 4003/4004 are read-only, and party and
+# holiday only force gear 3 or 1 on a timer. What does work: the live gear is the gear of the
+# weekly program's active zone, and writing that zone changes the fans within ~10 s. Register
+# 4009 ("Dzień programu") picks which day's program registers 4011-4024 read and write; it is
+# NOT the current weekday.
+#
+# So a manual gear means "rewrite the active zone of today's program". The zone's original gear
+# is saved in input_text.rekuperator_bieg_nadpisany ({"day","zone","orig"}) and put back when the
+# zone ends, the day changes, or "Program" is picked; the override then moves on to the next
+# zone. At most one zone of the program is ever modified.
+#
+# Time comes from the controller's own clock (sensor.rekuperator_wanas_zegar_sterownika), not
+# Home Assistant's: the controller picks the active zone by its clock, which can drift by over
+# an hour. The controller's weekday is taken as Home Assistant's, shifted by a day when the two
+# clocks sit on opposite sides of midnight.
+#
+# Party and holiday modes still override the gear while they run; this does not touch them.
+
+input_select:
+  rekuperator_bieg:
+    name: Rekuperator — bieg
+    icon: mdi:fan
+    options:
+      - Program
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+
+input_text:
+  rekuperator_bieg_nadpisany:
+    name: Rekuperator — nadpisana strefa programu
+    max: 100
+
+automation:
+  - id: rekuperator_bieg_reczny
+    alias: Rekuperator — bieg ręczny
+    description: >
+      Applies input_select.rekuperator_bieg by rewriting the active zone of today's weekly
+      program, and restores that zone afterwards. See packages/rekuperator_bieg.yaml.
+    mode: queued
+    max: 3
+    triggers:
+      - trigger: state
+        entity_id: input_select.rekuperator_bieg
+      # Ticks every minute, so zone ends and day changes are noticed.
+      - trigger: state
+        entity_id: sensor.rekuperator_wanas_zegar_sterownika
+      # A choice made while the ESP was offline is applied when it reconnects.
+      - trigger: state
+        entity_id: binary_sensor.rekuperator_wanas_polaczenie_esp
+        to: "on"
+        for: "00:00:30"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.rekuperator_wanas_polaczenie_esp
+        state: "on"
+      - "{{ states('sensor.rekuperator_wanas_zegar_sterownika') is match('^\\d\\d:\\d\\d$') }}"
+      # Nothing to apply or restore while following the program.
+      - "{{ not is_state('input_select.rekuperator_bieg', 'Program')
+            or states('input_text.rekuperator_bieg_nadpisany') not in ['', 'unknown'] }}"
+    variables:
+      clock: "{{ states('sensor.rekuperator_wanas_zegar_sterownika') }}"
+      controller_minutes: "{{ clock[:2] | int * 60 + clock[3:] | int }}"
+      ha_minutes: "{{ now().hour * 60 + now().minute }}"
+      day_shift: >
+        {% set diff = controller_minutes - ha_minutes %}
+        {{ 1 if diff < -720 else (-1 if diff > 720 else 0) }}
+      today: "{{ (now() + timedelta(days=day_shift)).isoweekday() % 7 }}"
+      wanted: "{{ states('input_select.rekuperator_bieg') }}"
+      saved: >
+        {% set raw = states('input_text.rekuperator_bieg_nadpisany') %}
+        {{ raw | from_json if raw.startswith('{') else none }}
+      # Slot ends belong to the day in number.rekuperator_wanas_dzien_programu_0_nd, so the
+      # active zone is only known while that is today.
+      program_is_today: "{{ states('number.rekuperator_wanas_dzien_programu_0_nd') | int(-1) == today }}"
+      zone_now: >
+        {{ range(1, 5) | map('string') | map('regex_replace', '^', 'number.rekuperator_wanas_koniec_strefy_')
+           | map('states') | map('int', 1440) | select('le', controller_minutes) | list | count + 1 }}
+    actions:
+      # Pass 1: put back the zone we changed, once it is no longer the one to override.
+      - if:
+          - "{{ saved is not none }}"
+          - >
+            {{ wanted == 'Program' or saved.day != today
+               or (program_is_today and saved.zone != zone_now) }}
+        then:
+          - action: number.set_value
+            target: { entity_id: number.rekuperator_wanas_dzien_programu_0_nd }
+            data: { value: "{{ saved.day }}" }
+          - action: number.set_value
+            target: { entity_id: "number.rekuperator_wanas_bieg_strefy_{{ saved.zone }}" }
+            data: { value: "{{ saved.orig }}" }
+          - action: input_text.set_value
+            target: { entity_id: input_text.rekuperator_bieg_nadpisany }
+            data: { value: "" }
+          - if: "{{ saved.day != today }}"
+            then:
+              - action: number.set_value
+                target: { entity_id: number.rekuperator_wanas_dzien_programu_0_nd }
+                data: { value: "{{ today }}" }
+
+      # Pass 2: apply the wanted gear to today's active zone.
+      - if:
+          - "{{ wanted != 'Program' }}"
+        then:
+          - if:
+              - "{{ states('number.rekuperator_wanas_dzien_programu_0_nd') | int(-1) != today }}"
+            then:
+              - action: number.set_value
+                target: { entity_id: number.rekuperator_wanas_dzien_programu_0_nd }
+                data: { value: "{{ today }}" }
+              - wait_template: "{{ states('number.rekuperator_wanas_dzien_programu_0_nd') | int(-1) == today }}"
+                timeout: "00:01:00"
+                continue_on_timeout: false
+              # One more 15 s poll so zone ends and gears belong to the newly selected day.
+              - delay: "00:00:20"
+          - variables:
+              ends: >
+                {{ range(1, 5) | map('string') | map('regex_replace', '^', 'number.rekuperator_wanas_koniec_strefy_')
+                   | map('states') | map('int', 1440) | list }}
+              active_zone: "{{ ends | select('le', controller_minutes) | list | count + 1 }}"
+              zone_entity: "number.rekuperator_wanas_bieg_strefy_{{ active_zone }}"
+              current: "{{ states(zone_entity) | int(-1) }}"
+          - condition: "{{ current >= 0 }}"
+          # Read the helper fresh: pass 1 may have just cleared it.
+          - if:
+              - "{{ not states('input_text.rekuperator_bieg_nadpisany').startswith('{') }}"
+            then:
+              - action: input_text.set_value
+                target: { entity_id: input_text.rekuperator_bieg_nadpisany }
+                data:
+                  value: "{{ {'day': today, 'zone': active_zone, 'orig': current} | to_json }}"
+          - if:
+              - "{{ current != wanted | int }}"
+            then:
+              - action: number.set_value
+                target: { entity_id: "{{ zone_entity }}" }
+                data: { value: "{{ wanted | int }}" }
