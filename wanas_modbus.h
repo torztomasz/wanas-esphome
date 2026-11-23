@@ -1,6 +1,8 @@
 #pragma once
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <string>
 
 // The ST-340 (firmware 2.1.27) sends the high byte first, as Modbus specifies: gear 2
 // arrives as "00 02". Writes need no helper: ESPHome's U_WORD write uses the same order.
@@ -17,4 +19,11 @@ template<typename Bytes> float wanas_temperature(const Bytes &data, size_t offse
   uint16_t raw = wanas_word(data, offset);
   if (raw == WANAS_SENSOR_ERROR) return NAN;
   return static_cast<int16_t>(raw) / 10.0f;
+}
+
+// Register 4052 packs the controller clock as hour in the high byte, minute in the low byte.
+inline std::string wanas_clock(uint16_t raw) {
+  char text[8];  // Room for "255:255", so a garbled register shows whole instead of cut off.
+  snprintf(text, sizeof(text), "%02d:%02d", raw >> 8, raw & 0xFF);
+  return text;
 }

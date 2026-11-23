@@ -60,10 +60,17 @@ modbus_controller:
   platform: modbus_controller
   modbus_controller_id: wanas
   register_type: holding
+  # One read per register instead of one per run of neighbours: on another model or firmware
+  # a register the controller rejects goes unavailable alone instead of taking its run down.
+  reuse_previous_range: false
 
 .word: &word
   <<: *register
   lambda: return wanas_word(data, item->offset);
+
+.flag: &flag
+  <<: *register
+  lambda: return wanas_word(data, item->offset) != 0;
 
 .temperature: &temperature
   <<: *register
@@ -77,6 +84,25 @@ modbus_controller:
   <<: *word
   value_type: U_WORD
   min_value: 0
+
+.zone_end: &zone_end
+  <<: *setting
+  max_value: 1425
+  step: 15
+  unit_of_measurement: min
+  mode: box
+
+# Comfort temperature: drives bypass, heater, cooler, GWC and humidifier, not the fans.
+.zone_temperature: &zone_temperature
+  <<: *word
+  value_type: U_WORD
+  min_value: 10
+  max_value: 30
+  unit_of_measurement: °C
+
+.diagnostic: &diagnostic
+  <<: *word
+  entity_category: diagnostic
 
 sensor:
   - <<: *word
@@ -95,35 +121,84 @@ sensor:
   - { <<: *temperature, name: Temperatura wyrzutu, address: 5 }
   - { <<: *temperature, name: Temperatura nawiewu, address: 6 }
   - { <<: *temperature, name: Temperatura pomieszczenia, address: 7 }
+  - { <<: *temperature, name: Temperatura EXTRA, address: 29 }
   - { <<: *word, name: Dni do wymiany filtra, address: 36, unit_of_measurement: d }
-  - { <<: *word, name: Kod błędów, address: 37, entity_category: diagnostic }
-  # Shows whether Wi-Fi reaches the mounting spot, often an attic or utility room.
+  - { <<: *diagnostic, name: Kod błędów, address: 37 }
+  # Read-only on purpose: a wrong write cuts Modbus off until the panel restores it.
+  - { <<: *diagnostic, name: Modbus adres, address: 24 }
+  - { <<: *diagnostic, name: Modbus prędkość (3=19200), address: 25 }
+  - { <<: *diagnostic, name: Modbus parametry (1=8E1), address: 26 }
+  - { <<: *diagnostic, name: Data (surowo), address: 50 }
+  - { <<: *diagnostic, name: Godzina (surowo), address: 51, id: clock_raw }
+  # ESP health tells a Wi-Fi or power problem apart from a Modbus one.
+  # Wi-Fi signal also shows whether the mounting spot, often an attic or utility room, is reachable.
   - { platform: wifi_signal, name: Sygnał Wi-Fi, update_interval: 60s, entity_category: diagnostic }
+  - { platform: uptime, name: Czas pracy ESP, entity_category: diagnostic }
+  - { platform: internal_temperature, name: Temperatura ESP, entity_category: diagnostic }
 
 binary_sensor:
-  - <<: *register
-    name: GWC aktywny
-    address: 30
-    lambda: return wanas_word(data, item->offset) != 0;
-  - <<: *register
-    name: Bypass aktywny
-    address: 31
-    lambda: return wanas_word(data, item->offset) != 0;
+  - { <<: *flag, name: GWC aktywny, address: 30 }
+  - { <<: *flag, name: Bypass aktywny, address: 31 }
+  - { <<: *flag, name: Nawilżacz aktywny, address: 32 }
+  - { <<: *flag, name: Nagrzewnica aktywna, address: 33 }
+  - { <<: *flag, name: Chłodnica aktywna, address: 34 }
+  - { <<: *flag, name: Urlop aktywny, address: 35 }
+  - { <<: *flag, name: Wejście bieg 1, address: 46 }
+  - { <<: *flag, name: Wejście bieg 3, address: 47 }
+  - { <<: *flag, name: Wejście okap, address: 48 }
+  - { <<: *flag, name: Wejście ppoż, address: 49 }
   - <<: *register
     name: Filtr do wymiany
     address: 36
     device_class: problem
     lambda: return wanas_word(data, item->offset) == 0;
+  - { platform: status, name: Połączenie ESP, entity_category: diagnostic }
 
-# The ST-340 has no "current gear" write register; control goes through the
-# weekly-program zone gears and the timed party/fireplace/holiday functions.
+# The ST-340 has no "set gear now" register: the live gear is the gear of the weekly program's
+# active zone, so writing that zone changes the fans within seconds. Register 4073 "manual speed"
+# from the 04.2026 Combo manual is rejected on read and ignored on write by firmware 2.1.27.
+# home-assistant/rekuperator_bieg.yaml builds a gear selector on top of this.
 number:
+  # Not the current weekday: it picks which day's program registers 10–23 read and write.
+  - { <<: *setting, name: Dzień programu (0=nd), address: 8, max_value: 6 }
+  - { <<: *zone_end, name: Koniec strefy 1, address: 10 }
+  - { <<: *zone_end, name: Koniec strefy 2, address: 11 }
+  - { <<: *zone_end, name: Koniec strefy 3, address: 12 }
+  - { <<: *zone_end, name: Koniec strefy 4, address: 13 }
   - { <<: *setting, name: Bieg strefy 1, address: 14, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 2, address: 15, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 3, address: 16, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 4, address: 17, max_value: 3 }
   - { <<: *setting, name: Bieg strefy 5, address: 18, max_value: 3 }
+  - { <<: *zone_temperature, name: Temp. strefy 1, address: 19 }
+  - { <<: *zone_temperature, name: Temp. strefy 2, address: 20 }
+  - { <<: *zone_temperature, name: Temp. strefy 3, address: 21 }
+  - { <<: *zone_temperature, name: Temp. strefy 4, address: 22 }
+  - { <<: *zone_temperature, name: Temp. strefy 5, address: 23 }
+  - { <<: *setting, name: Aktywacja GWC, address: 38, max_value: 1 }
   - { <<: *setting, name: Aktywacja bypassu, address: 39, max_value: 1 }
+  - { <<: *setting, name: Aktywacja nawilżacza, address: 40, max_value: 1 }
+  - { <<: *setting, name: Nagrzewnica (dni), address: 41, max_value: 60, unit_of_measurement: d }
+  - { <<: *setting, name: Chłodnica (dni), address: 42, max_value: 60, unit_of_measurement: d }
   - { <<: *setting, name: Urlop, address: 43, max_value: 30, unit_of_measurement: d }
   - { <<: *setting, name: Funkcja kominek, address: 44, max_value: 180 }
   - { <<: *setting, name: Funkcja impreza, address: 45, max_value: 720, step: 15, unit_of_measurement: min }
+
+text_sensor:
+  # The gear selector in home-assistant/ reads this: the controller picks the active zone by
+  # its own clock, which need not match Home Assistant's.
+  - platform: template
+    name: Zegar sterownika
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      if (std::isnan(id(clock_raw).state)) return {};
+      return wanas_clock(id(clock_raw).state);
+  - { platform: version, name: Wersja ESPHome, entity_category: diagnostic }
+  - platform: wifi_info
+    ip_address: { name: Adres IP, entity_category: diagnostic }
+    bssid: { name: Punkt dostępowy Wi-Fi, entity_category: diagnostic }
+
+button:
+  - { platform: restart, name: Restart ESP, entity_category: config }
+  - { platform: safe_mode, name: Tryb awaryjny ESP, entity_category: config }
